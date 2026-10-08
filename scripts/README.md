@@ -6,7 +6,7 @@ Every script here is **standalone**: one file, no dependency on `modules/`, so i
 | Domain | What goes there |
 |---|---|
 | [`microsoft/`](microsoft/) | Active Directory, DNS, Exchange on-prem, Microsoft 365, Windows Server, file services, PKI |
-| [`virtualization/`](virtualization/) | VMware (vSphere, VCF, vSAN, VxRail), Nutanix, later Hyper-V / Proxmox |
+| [`virtualization/`](virtualization/) | VMware (vSphere, VCF, vSAN, VxRail), Nutanix, KVM (VirtIO guests), later Hyper-V / Proxmox |
 | [`storage/`](storage/) | Storage arrays, SAN fabric, NAS - one folder per vendor |
 | [`backup/`](backup/) | Veeam, tape |
 | [`databases/`](databases/) | SQL Server, later other engines |
@@ -21,4 +21,5 @@ Every script here is **standalone**: one file, no dependency on `modules/`, so i
 | Script | Description | Mode | Verified |
 |---|---|---|---|
 | [microsoft/dns/Test-KSK2024Readiness.ps1](microsoft/dns/Test-KSK2024Readiness.ps1) | Read-only readiness check for the DNSSEC Root KSK rollover to KSK-2024 (key tag 38696) | Read-only | not yet |
+| [virtualization/kvm/Install-VirtIOBootDriver.ps1](virtualization/kvm/Install-VirtIOBootDriver.ps1) | Checks and installs the VirtIO drivers a Windows VM needs before migration to KVM: vioscsi and viostor as boot drivers, NetKVM staged. | Read-only (changes with -Fix) | not yet |
 <!-- SCRIPTS:END -->
