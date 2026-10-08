@@ -1,0 +1,81 @@
+# ---------------------------------------------------------------
+# Secrets and credentials - must never be committed
+# ---------------------------------------------------------------
+*.pfx
+*.p12
+*.key
+*.pem
+*.keytab
+*.kdbx
+*.ovpn
+*.rdp
+*.lic
+*.license
+.env
+.env.*
+*.cred
+*.clixml
+id_rsa*
+id_ed25519*
+
+# Data files that hold passwords / secrets (script files with these words in the name are allowed)
+*password*.txt
+*password*.csv
+*password*.xlsx
+*passwd*.txt
+*secret*.txt
+*secret*.json
+*credential*.xml
+*credential*.json
+*credential*.txt
+*cred*.xml
+
+# mRemoteNG connection files (contain stored credentials)
+confCons.xml
+confCons.xml.*
+*.mrng
+
+# FortiClient / VPN exported configurations
+*.fcconfig
+*forticlient*.conf
+*forticlient*.xml
+
+# ---------------------------------------------------------------
+# Script outputs - reports, logs and exports
+# ---------------------------------------------------------------
+*.log
+*.transcript.txt
+output/
+outputs/
+InfraToolkit-Output/
+KSK2024-Readiness-*.txt
+transcript-*.txt
+
+# Release packages (uploaded to GitHub Releases)
+dist/
+
+# Per-customer parameter files and real tool configs - only *.example.* files are committed
+*.customer.json
+*.customer.psd1
+*.customer.csv
+tools/*/config/*
+!tools/*/config/*.example.*
+
+# ---------------------------------------------------------------
+# OS, editor and sync clutter
+# ---------------------------------------------------------------
+Thumbs.db
+desktop.ini
+.DS_Store
+~$*
+*.tmp
+*.bak
+*.swp
+.tmp.drivedownload/
+.tmp.driveupload/
+*.gdoc
+*.gsheet
+*.lnk
+.vscode/
+.idea/
+__pycache__/
