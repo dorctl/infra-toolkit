@@ -26,5 +26,6 @@ Every script here is **standalone**: one file, no dependency on `modules/`, so i
 | [microsoft/exchange/Set-ExchangeVirtualDirectoryUrls.ps1](microsoft/exchange/Set-ExchangeVirtualDirectoryUrls.ps1) | Checks Exchange virtual directory, Autodiscover and Outlook Anywhere URLs for a namespace, sets them with -Fix. | Read-only (changes with -Fix) | not yet |
 | [microsoft/windows-server/Test-SchannelHardening.ps1](microsoft/windows-server/Test-SchannelHardening.ps1) | Checks TLS hardening: SCHANNEL protocols, ciphers, DH key size and .NET strong crypto. Fixes with -Fix. | Read-only (changes with -Fix) | not yet |
 | [misc/Export-RemoteTlsCertificate.ps1](misc/Export-RemoteTlsCertificate.ps1) | Connects to a TLS service (host and port) and exports the certificate it presents to a .cer file. | Read-only | not yet |
+| [misc/Watch-HostPing.ps1](misc/Watch-HostPing.ps1) | Pings a host continuously, logs every reply with a timestamp to the screen and a file, and ends with a summary. | Read-only | not yet |
 | [virtualization/kvm/Install-VirtIOBootDriver.ps1](virtualization/kvm/Install-VirtIOBootDriver.ps1) | Checks and installs the VirtIO drivers a Windows VM needs before migration to KVM: vioscsi and viostor as boot drivers, NetKVM staged. | Read-only (changes with -Fix) | not yet |
 <!-- SCRIPTS:END -->
