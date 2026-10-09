@@ -21,6 +21,7 @@ Every script here is **standalone**: one file, no dependency on `modules/`, so i
 | Script | Description | Mode | Verified |
 |---|---|---|---|
 | [backup/veeam/Invoke-VeeamRescan.ps1](backup/veeam/Invoke-VeeamRescan.ps1) | Rescans Veeam Backup & Replication managed servers and backup repositories, all of them or the ones named. | Changes: runs a rescan of managed servers and repositories | not yet |
+| [endpoint/windows/Repair-PhantomKeyboardLayout.ps1](endpoint/windows/Repair-PhantomKeyboardLayout.ps1) | Finds keyboard layouts in the input switcher that are not in the user language list. Removes them with -Fix. | Read-only (changes with -Fix) | not yet |
 | [microsoft/dns/Test-KSK2024Readiness.ps1](microsoft/dns/Test-KSK2024Readiness.ps1) | Read-only readiness check for the DNSSEC Root KSK rollover to KSK-2024 (key tag 38696) | Read-only | not yet |
 | [microsoft/exchange/Clear-ExchangeLogFiles.ps1](microsoft/exchange/Clear-ExchangeLogFiles.ps1) | Reports Exchange and IIS log files older than a retention period, and deletes them with -Fix. | Read-only (changes with -Fix) | not yet |
 | [microsoft/exchange/Set-ExchangeVirtualDirectoryUrls.ps1](microsoft/exchange/Set-ExchangeVirtualDirectoryUrls.ps1) | Checks Exchange virtual directory, Autodiscover and Outlook Anywhere URLs for a namespace, sets them with -Fix. | Read-only (changes with -Fix) | not yet |
