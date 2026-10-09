@@ -1,4 +1,5 @@
 #Requires -Version 3.0
+
 <#
 .SYNOPSIS
     Read-only readiness check for the DNSSEC Root KSK rollover to KSK-2024 (key tag 38696)
