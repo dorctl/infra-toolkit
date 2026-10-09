@@ -9,5 +9,7 @@ Dell VxRail: VxRail Manager API, upgrades, node add / remove, hardware health.
 ## Scripts
 
 <!-- SCRIPTS:START -->
-_No scripts yet._
+| Script | Description | Mode | Verified |
+|---|---|---|---|
+| [get-vxrail-upgrade-info.sh](get-vxrail-upgrade-info.sh) | Shows if a VxRail cluster has an external or embedded vCenter, and its component versions, before an upgrade. | Read-only | not yet |
 <!-- SCRIPTS:END -->

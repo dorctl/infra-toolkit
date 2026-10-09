@@ -19,4 +19,5 @@ Hypervisors and HCI platforms, one folder per vendor (`vmware/`, `nutanix/`, lat
 | Script | Description | Mode | Verified |
 |---|---|---|---|
 | [kvm/Install-VirtIOBootDriver.ps1](kvm/Install-VirtIOBootDriver.ps1) | Checks and installs the VirtIO drivers a Windows VM needs before migration to KVM: vioscsi and viostor as boot drivers, NetKVM staged. | Read-only (changes with -Fix) | not yet |
+| [vmware/vxrail/get-vxrail-upgrade-info.sh](vmware/vxrail/get-vxrail-upgrade-info.sh) | Shows if a VxRail cluster has an external or embedded vCenter, and its component versions, before an upgrade. | Read-only | not yet |
 <!-- SCRIPTS:END -->

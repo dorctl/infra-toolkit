@@ -61,6 +61,7 @@ _No tools yet._
 | [scripts/misc/Export-RemoteTlsCertificate.ps1](scripts/misc/Export-RemoteTlsCertificate.ps1) | Connects to a TLS service (host and port) and exports the certificate it presents to a .cer file. | Read-only | not yet |
 | [scripts/misc/Watch-HostPing.ps1](scripts/misc/Watch-HostPing.ps1) | Pings a host continuously, logs every reply with a timestamp to the screen and a file, and ends with a summary. | Read-only | not yet |
 | [scripts/virtualization/kvm/Install-VirtIOBootDriver.ps1](scripts/virtualization/kvm/Install-VirtIOBootDriver.ps1) | Checks and installs the VirtIO drivers a Windows VM needs before migration to KVM: vioscsi and viostor as boot drivers, NetKVM staged. | Read-only (changes with -Fix) | not yet |
+| [scripts/virtualization/vmware/vxrail/get-vxrail-upgrade-info.sh](scripts/virtualization/vmware/vxrail/get-vxrail-upgrade-info.sh) | Shows if a VxRail cluster has an external or embedded vCenter, and its component versions, before an upgrade. | Read-only | not yet |
 <!-- SCRIPTS:END -->
 
 ## License

@@ -12,5 +12,7 @@ VMware by Broadcom stack, one folder per product. Add `nsx/`, `aria/` and others
 ## Scripts
 
 <!-- SCRIPTS:START -->
-_No scripts yet._
+| Script | Description | Mode | Verified |
+|---|---|---|---|
+| [vxrail/get-vxrail-upgrade-info.sh](vxrail/get-vxrail-upgrade-info.sh) | Shows if a VxRail cluster has an external or embedded vCenter, and its component versions, before an upgrade. | Read-only | not yet |
 <!-- SCRIPTS:END -->
