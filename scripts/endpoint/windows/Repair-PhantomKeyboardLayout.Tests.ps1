@@ -95,7 +95,8 @@ BeforeAll {
             [string[]]$Preload = @('0000040d', '00000409'),
             [switch]$NoPreload,
             [hashtable]$Params = @{},
-            [hashtable]$Scenario = @{}
+            [hashtable]$Scenario = @{},
+            [string]$ScriptDir
         )
         $list = @(foreach ($l in $Languages) { if ($l -is [string]) { New-KbdLanguage $l } else { $l } })
         $pre = [ordered]@{}
@@ -109,15 +110,28 @@ BeforeAll {
         $originalTags = @($list | ForEach-Object { $_.LanguageTag })
 
         $out = Join-Path $TestDrive ([guid]::NewGuid().ToString('N'))
-        $output = & $script:Target @Params -LogPath $out *>&1
+        if ($ScriptDir) {
+            # A copy of the script, run without -LogPath: the default folder is next to the copy
+            $copy = Join-Path $ScriptDir (Split-Path -Leaf $script:Target)
+            Copy-Item -LiteralPath $script:Target -Destination $copy -Force
+            $output = & $copy @Params *>&1
+        } else {
+            $output = & $script:Target @Params -LogPath $out *>&1
+        }
         $code = $LASTEXITCODE
+        $text = (@($output | ForEach-Object { [string]$_ }) -join "`n")
+        # With the default folder, the script prints where it wrote
+        if ($ScriptDir) {
+            $out = Join-Path $ScriptDir 'no-output-folder-printed'
+            if ($text -match 'Output folder: ([^\r\n]+)') { $out = $Matches[1].Trim() }
+        }
 
         $csv = Join-Path $out 'keyboard-layouts.csv'
         $rows = @()
         if (Microsoft.PowerShell.Management\Test-Path -LiteralPath $csv) { $rows = @(Import-Csv -LiteralPath $csv) }
         return [pscustomobject]@{
             ExitCode = $code; Rows = $rows; Out = $out
-            Text     = (@($output | ForEach-Object { [string]$_ }) -join "`n")
+            Text     = $text
             SetCalls = @($global:KbdScenario.SetCalls)
             Tags     = @($global:KbdScenario.List | ForEach-Object { $_.LanguageTag })
             Original = $originalTags
@@ -337,6 +351,29 @@ Describe 'Repair-PhantomKeyboardLayout' {
             $r.ExitCode | Should -Be 0
             $r.Text | Should -Match 'Nothing to change'
             $r.SetCalls.Count | Should -Be 0
+        }
+    }
+
+    Context 'Default output folder' {
+
+        It 'without the path parameter: InfraToolkit-Output\Repair-PhantomKeyboardLayout plus a timestamp folder, next to the script, also with -WhatIf' {
+            $dir = Join-Path $TestDrive ('Scripts-{0}' -f [guid]::NewGuid().ToString('N').Substring(0, 8))
+            Microsoft.PowerShell.Management\New-Item -ItemType Directory -Path $dir | Out-Null
+            $base = Join-Path (Join-Path $dir 'InfraToolkit-Output') 'Repair-PhantomKeyboardLayout'
+
+            $r = Invoke-Scenario -ScriptDir $dir
+            $r.ExitCode | Should -Be 0
+            $r.Rows.Count | Should -Be 2
+            Split-Path -Parent $r.Out | Should -Be $base
+            Split-Path -Leaf $r.Out   | Should -Match '^\d{8}-\d{6}$'
+
+            # -WhatIf must not stop the script from finding its folder, and writes only the report
+            $r = Invoke-Scenario -ScriptDir $dir -Preload '0000040d', '00000409', '00000809' -Params @{ Fix = $true; WhatIf = $true }
+            $r.ExitCode | Should -Be 1
+            $r.Rows.Count | Should -Be 3
+            $r.SetCalls.Count | Should -Be 0
+            Split-Path -Parent $r.Out | Should -Be $base
+            Microsoft.PowerShell.Management\Test-Path -LiteralPath (Join-Path $r.Out 'transcript.txt') | Should -BeFalse
         }
     }
 }

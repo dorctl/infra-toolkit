@@ -305,6 +305,26 @@ Describe 'Export-RemoteTlsCertificate' {
         }
     }
 
+    Context 'Default output folder' {
+
+        It 'without -OutputPath the files go to InfraToolkit-Output\Export-RemoteTlsCertificate\yyyyMMdd-HHmmss next to the script' -Skip:($PSVersionTable.PSVersion.Major -lt 7) {
+            Use-ServerCertificate $script:SelfSignedContext
+            $dir = Join-Path $TestDrive 'script-copy'
+            $null = New-Item -ItemType Directory -Path $dir -Force
+            Copy-Item -LiteralPath $script:Target -Destination $dir
+            $text = & (Join-Path $dir 'Export-RemoteTlsCertificate.ps1') -HostName '127.0.0.1' -Port $script:Server.Port *>&1 | Out-String
+            $LASTEXITCODE | Should -Be 0
+            $root = Join-Path (Join-Path $dir 'InfraToolkit-Output') 'Export-RemoteTlsCertificate'
+            $stampDirs = @(Get-ChildItem -LiteralPath $root -Directory)
+            $stampDirs.Count | Should -Be 1
+            $stampDirs[0].Name | Should -Match '^\d{8}-\d{6}$'
+            $file = Join-Path $stampDirs[0].FullName "127.0.0.1_$($script:Server.Port).cer"
+            Test-Path -LiteralPath $file | Should -BeTrue
+            Get-FileThumbprint $file | Should -Be $script:SelfSigned.Thumbprint
+            $text | Should -Match ('Output folder\s+: ' + [regex]::Escape($stampDirs[0].FullName))
+        }
+    }
+
     Context 'Failures (exit 3)' {
 
         It 'closed port: exit 3 quickly, nothing saved' {

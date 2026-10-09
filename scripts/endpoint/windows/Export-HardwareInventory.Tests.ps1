@@ -384,6 +384,35 @@ Describe 'Export-HardwareInventory' {
         }
     }
 
+    Context 'Default file' {
+
+        It 'without -CsvPath: InfraToolkit-Output\Export-HardwareInventory\hardware-inventory.csv next to the script, updated in place' {
+            $folder = Join-Path $TestDrive 'default-csv'
+            $null = New-Item -ItemType Directory -Path $folder -Force
+            Copy-Item -LiteralPath $script:Target -Destination $folder
+            $copy = Join-Path $folder 'Export-HardwareInventory.ps1'
+            $base = Join-Path $folder 'InfraToolkit-Output'
+            $csv = Join-Path (Join-Path $base 'Export-HardwareInventory') 'hardware-inventory.csv'
+
+            # nothing could be read: nothing is written, no folder is created
+            Set-Scenario @{}
+            & $copy *> $null
+            $LASTEXITCODE | Should -Be 1
+            Test-Path -LiteralPath $base | Should -BeFalse
+
+            Set-Scenario @{ PC01 = (New-TestComputer -Name 'PC01' -Serial '5CD1234XYZ') }
+            $output = & $copy *>&1 | Out-String
+            $LASTEXITCODE | Should -Be 0
+            @(Import-Csv -LiteralPath $csv).ComputerName | Should -Be @('PC01')
+            ($output -replace '\s', '') | Should -Match ([regex]::Escape($csv))
+
+            & $copy *> $null
+            $LASTEXITCODE | Should -Be 0
+            @(Import-Csv -LiteralPath $csv).Count | Should -Be 1
+            Get-FolderContent $csv | Should -Be @('hardware-inventory.csv')
+        }
+    }
+
     Context 'Errors' {
 
         It 'an unreachable computer: exit 1, the others are written' {

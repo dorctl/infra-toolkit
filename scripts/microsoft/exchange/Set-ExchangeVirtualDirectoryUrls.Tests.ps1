@@ -153,7 +153,9 @@ BeforeAll {
             [string[]]$Servers = @('EX01'),
             [switch]$Fresh,
             [scriptblock]$Setup,
-            [hashtable]$Params = @{}
+            [hashtable]$Params = @{},
+            [string]$Script = $script:Target,
+            [switch]$DefaultOutput
         )
         $global:ExUrlTest = @{
             Servers = @(); State = @{}; GetCalls = @(); SetCalls = @(); FailGet = @(); FailSet = @()
@@ -168,8 +170,9 @@ BeforeAll {
 
         $root = Join-Path $TestDrive ([guid]::NewGuid().ToString('N'))
         $run = @{ HostName = 'mail.contoso.com'; OutputPath = (Join-Path $root 'out'); LogPath = (Join-Path $root 'log') }
+        if ($DefaultOutput) { $run = @{ HostName = 'mail.contoso.com' } }
         foreach ($k in $Params.Keys) { $run[$k] = $Params[$k] }
-        $text = & $script:Target @run *>&1 | Out-String
+        $text = & $Script @run *>&1 | Out-String
         $code = $LASTEXITCODE
 
         $csv = Join-Path $root 'out/results.csv'
@@ -180,6 +183,14 @@ BeforeAll {
             Transcripts = @(Get-ChildItem -Path (Join-Path $root 'log') -Filter 'transcript-*.txt' -ErrorAction SilentlyContinue)
             GetCalls = @($global:ExUrlTest.GetCalls); SetCalls = @($global:ExUrlTest.SetCalls)
         }
+    }
+
+    # A copy of the script in its own TestDrive folder, to test the default output folder next to the script
+    function script:Copy-TestScript {
+        $dir = Join-Path $TestDrive ('copy-' + [guid]::NewGuid().ToString('N'))
+        $null = New-Item -ItemType Directory -Path $dir
+        Copy-Item -LiteralPath $script:Target -Destination $dir
+        return (Join-Path $dir (Split-Path -Leaf $script:Target))
     }
 
     $script:FixParams = @{ Fix = $true; Confirm = $false }
@@ -508,6 +519,34 @@ Describe 'Set-ExchangeVirtualDirectoryUrls' {
             $failed[0].Detail | Should -Match 'Active Directory operation failed'
             @($r.Rows | Where-Object Status -eq 'SET').Count | Should -Be 36
             $r.SetCalls.Count | Should -Be 18
+        }
+    }
+
+    Context 'Default output folder' {
+
+        It 'without -OutputPath and -LogPath: report and transcript in InfraToolkit-Output next to the script' {
+            $copy = Copy-TestScript
+            $base = Join-Path (Join-Path (Split-Path -Parent $copy) 'InfraToolkit-Output') 'Set-ExchangeVirtualDirectoryUrls'
+            $r = Invoke-Scenario -Fresh -Script $copy -DefaultOutput -Params $FixParams
+            $r.ExitCode | Should -Be 0
+            $stamps = @(Get-ChildItem -LiteralPath $base -Directory)
+            $stamps.Count   | Should -Be 1
+            $stamps[0].Name | Should -Match '^\d{8}-\d{6}$'
+            $csv = Join-Path $stamps[0].FullName 'results.csv'
+            @(Import-Csv -LiteralPath $csv).Count | Should -Be 19
+            $transcripts = @(Get-ChildItem -LiteralPath $base -Filter 'transcript-*.txt')
+            $transcripts.Count | Should -Be 1
+            $r.Text | Should -Match ([regex]::Escape($csv))
+            $r.Text | Should -Match ([regex]::Escape($transcripts[0].FullName))
+
+            # -WhatIf: the report is still saved, no transcript
+            $copy = Copy-TestScript
+            $base = Join-Path (Join-Path (Split-Path -Parent $copy) 'InfraToolkit-Output') 'Set-ExchangeVirtualDirectoryUrls'
+            $r = Invoke-Scenario -Fresh -Script $copy -DefaultOutput -Params @{ Fix = $true; WhatIf = $true }
+            $r.ExitCode | Should -Be 1
+            $r.SetCalls.Count | Should -Be 0
+            @(Get-ChildItem -LiteralPath $base -Filter 'results.csv' -Recurse).Count | Should -Be 1
+            @(Get-ChildItem -LiteralPath $base -Filter 'transcript-*.txt').Count | Should -Be 0
         }
     }
 }

@@ -221,4 +221,26 @@ Describe 'Test-KSK2024Readiness' {
             $r.ExitCode | Should -Be 2
         }
     }
+
+    Context 'Report file' {
+
+        It 'without -ReportPath: the report goes to InfraToolkit-Output\Test-KSK2024Readiness next to the script' {
+            $folder = Join-Path $TestDrive 'default-report'
+            $null = New-Item -ItemType Directory -Path $folder -Force
+            Copy-Item -LiteralPath $script:Target -Destination $folder
+            $copy = Join-Path $folder 'Test-KSK2024Readiness.ps1'
+            $global:KskScenario = @{
+                Servers = @{ DC01 = @{ Dnssec = $true; TP = $null; TA = @(); Fwd = @('198.51.100.53'); Hint = $true } }
+                Dns     = @{ DC01 = $ValNoSentinel; '198.51.100.53' = $ValNoSentinel }
+            }
+            $run = @{ ComputerName = @('DC01') }
+            $output = & $copy @run *>&1 | Out-String
+            $LASTEXITCODE | Should -Be 0
+            $reports = @(Get-ChildItem -LiteralPath (Join-Path (Join-Path $folder 'InfraToolkit-Output') 'Test-KSK2024Readiness'))
+            $reports.Count | Should -Be 1
+            $reports[0].Name | Should -Match '^KSK2024-Readiness-.+-\d{8}-\d{4}\.txt$'
+            Get-Content -LiteralPath $reports[0].FullName -Raw | Should -Match 'NOT_VALIDATING'
+            ($output -replace '\s', '') | Should -Match ([regex]::Escape($reports[0].FullName))
+        }
+    }
 }

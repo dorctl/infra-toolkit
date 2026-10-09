@@ -291,7 +291,9 @@ SERVICE_ERROR_NORMAL   = 1
             [string]$Ready,
             [scriptblock]$Setup,
             [hashtable]$Params = @{},
-            [hashtable]$Scenario = @{}
+            [hashtable]$Scenario = @{},
+            [string]$Script = $script:Target,
+            [switch]$DefaultOutputPath
         )
         $root = Join-Path $TestDrive ([guid]::NewGuid().ToString('N'))
         $env:SystemRoot = Join-Path $root 'Windows'
@@ -318,7 +320,8 @@ SERVICE_ERROR_NORMAL   = 1
         $run = @{} + $Params
         if (-not $NoMedia -and -not $NoMediaParameter) { $run['VirtIOPath'] = $media }
         $out = Join-Path $root 'out'
-        & $script:Target @run -OutputPath $out *> $null
+        if (-not $DefaultOutputPath) { $run['OutputPath'] = $out }
+        & $Script @run *> $null
         $code = $LASTEXITCODE
 
         $reportFile = Join-Path $out 'report.txt'
@@ -522,6 +525,23 @@ Describe 'Install-VirtIOBootDriver' {
             $r.PnpCalls.Count | Should -Be 0
             $global:VioReg.Count | Should -Be 1
             Microsoft.PowerShell.Management\Test-Path -LiteralPath (Join-Path $r.Out 'transcript.txt') | Should -BeFalse
+        }
+
+        It 'without -OutputPath: report in a timestamp folder in InfraToolkit-Output\Install-VirtIOBootDriver next to the script, also under -WhatIf' {
+            foreach ($case in @(@{ Name = 'report-only'; Params = @{} }, @{ Name = 'fix-whatif'; Params = @{ Fix = $true; WhatIf = $true } })) {
+                $folder = Join-Path $TestDrive ('default-out-{0}' -f $case.Name)
+                $null = Microsoft.PowerShell.Management\New-Item -ItemType Directory -Path $folder -Force
+                Copy-Item -LiteralPath $script:Target -Destination $folder
+                $r = Invoke-Scenario -Script (Join-Path $folder 'Install-VirtIOBootDriver.ps1') -DefaultOutputPath -Params $case.Params
+                $r.ExitCode | Should -Be 1
+                $runs = @(Get-ChildItem -LiteralPath (Join-Path (Join-Path $folder 'InfraToolkit-Output') 'Install-VirtIOBootDriver') -Directory)
+                $runs.Count | Should -Be 1
+                $runs[0].Name | Should -Match '^\d{8}-\d{6}$'
+                $report = Get-Content -LiteralPath (Join-Path $runs[0].FullName 'report.txt') -Raw
+                $report | Should -Match 'Not in the Driver Store'
+                ($report -replace '\s', '') | Should -Match ([regex]::Escape((Join-Path $runs[0].FullName 'report.txt')))
+                Microsoft.PowerShell.Management\Test-Path -LiteralPath $r.Out | Should -BeFalse
+            }
         }
 
         It 'prepared VM: nothing to change' {

@@ -120,7 +120,7 @@ BeforeAll {
     )
 
     function script:Invoke-Scenario {
-        param([hashtable]$Scenario = @{}, [hashtable]$Params = @{})
+        param([hashtable]$Scenario = @{}, [hashtable]$Params = @{}, [string]$Script = $script:Target, [switch]$DefaultOutput)
         $global:VssTest = @{
             Elevated = $true; VssFail = $false; German = $false; Quote = ''; VssCalls = 0; Others = $script:OtherWriters
             Writer = $script:Stable; WriterAfterRestart = $script:Stable
@@ -131,13 +131,22 @@ BeforeAll {
 
         $log = Join-Path $TestDrive ([guid]::NewGuid().ToString('N'))
         $run = @{ LogPath = $log }
+        if ($DefaultOutput) { $run = @{} }
         foreach ($k in $Params.Keys) { $run[$k] = $Params[$k] }
-        $text = & $script:Target @run *>&1 | Out-String
+        $text = & $Script @run *>&1 | Out-String
         $code = $LASTEXITCODE
         return [pscustomobject]@{
             ExitCode = $code; Text = $text; Calls = @($global:VssTest.Calls); VssCalls = $global:VssTest.VssCalls
             Transcripts = @(Get-ChildItem -Path $log -Filter 'transcript-*.txt' -ErrorAction SilentlyContinue)
         }
+    }
+
+    # A copy of the script in its own TestDrive folder, to test the default output folder next to the script
+    function script:Copy-TestScript {
+        $dir = Join-Path $TestDrive ('copy-' + [guid]::NewGuid().ToString('N'))
+        $null = New-Item -ItemType Directory -Path $dir
+        Copy-Item -LiteralPath $script:Target -Destination $dir
+        return (Join-Path $dir (Split-Path -Leaf $script:Target))
     }
 
     $script:FixParams = @{ Fix = $true; Confirm = $false }
@@ -339,6 +348,27 @@ Describe 'Repair-ExchangeVssWriter' {
             $r.ExitCode | Should -Be 0
             $r.Calls.Count | Should -Be 0
             $r.Text | Should -Match 'Nothing to change'
+        }
+    }
+
+    Context 'Default output folder' {
+
+        It 'without -LogPath: no folder without -Fix or under -WhatIf, the -Fix transcript in InfraToolkit-Output next to the script' {
+            $copy = Copy-TestScript
+            $out = Join-Path (Split-Path -Parent $copy) 'InfraToolkit-Output'
+            $r = Invoke-Scenario -Script $copy -DefaultOutput -Scenario @{ Writer = $script:Failed }
+            $r.ExitCode | Should -Be 1
+            Test-Path -LiteralPath $out | Should -BeFalse
+            $r = Invoke-Scenario -Script $copy -DefaultOutput -Scenario @{ Writer = $script:Failed } -Params @{ Fix = $true; WhatIf = $true }
+            $r.ExitCode | Should -Be 1
+            Test-Path -LiteralPath $out | Should -BeFalse
+
+            $r = Invoke-Scenario -Script $copy -DefaultOutput -Scenario @{ Writer = $script:Failed } -Params $FixParams
+            $r.ExitCode | Should -Be 0
+            $transcripts = @(Get-ChildItem -LiteralPath (Join-Path $out 'Repair-ExchangeVssWriter') -Filter 'transcript-*.txt')
+            $transcripts.Count | Should -Be 1
+            @(Get-ChildItem -LiteralPath (Join-Path $out 'Repair-ExchangeVssWriter') -Directory).Count | Should -Be 0
+            $r.Text | Should -Match ([regex]::Escape($transcripts[0].FullName))
         }
     }
 }

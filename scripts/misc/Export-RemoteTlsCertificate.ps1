@@ -47,7 +47,9 @@
     Time limit for each TCP connection attempt (per address) and for the handshake. Default: 10.
 
 .PARAMETER OutputPath
-    Folder for the .cer files. Default: %USERPROFILE%\InfraToolkit-Output\Export-RemoteTlsCertificate\<timestamp>
+    Folder for the .cer files. Default: InfraToolkit-Output\Export-RemoteTlsCertificate\<timestamp> in the folder
+    of the script (falls back to %TEMP%\InfraToolkit-Output\Export-RemoteTlsCertificate when that folder cannot be
+    written or is in OneDrive).
 
 .EXAMPLE
     .\Export-RemoteTlsCertificate.ps1 -HostName www.contoso.com
@@ -94,8 +96,7 @@ param(
     [ValidateRange(1, 600)]
     [int]$TimeoutSeconds = 10,
 
-    [string]$OutputPath = (Join-Path $env:USERPROFILE ('InfraToolkit-Output\{0}\{1}' -f
-        ($MyInvocation.MyCommand.Name -replace '\.ps1$', ''), (Get-Date -Format 'yyyyMMdd-HHmmss')))
+    [string]$OutputPath
 )
 
 $ErrorActionPreference = 'Stop'
@@ -110,6 +111,47 @@ $X509Type          = 'System.Security.Cryptography.X509Certificates.X509Certific
 if (-not $ServerName) { $ServerName = $HostName }
 
 # ------------------------------------------------------------------ helpers
+function Get-OutputFolder {
+    # Default output folder: InfraToolkit-Output\<script name> next to the script file.
+    # Falls back to %TEMP%\InfraToolkit-Output\<script name> when the script was not run from a file,
+    # when its folder is inside OneDrive (outputs must not be synced), or when that folder cannot be written.
+    # Its write test always runs, also under -WhatIf and -Confirm.
+    param([string]$ScriptRoot, [string]$ScriptName)
+
+    $candidates = @()
+    if ($ScriptRoot) {
+        $root = $ScriptRoot.TrimEnd('\', '/').ToLowerInvariant()
+        $synced = $false
+        foreach ($s in @($env:OneDrive, $env:OneDriveCommercial, $env:OneDriveConsumer)) {
+            if (-not $s) { continue }
+            $sync = $s.TrimEnd('\', '/').ToLowerInvariant()
+            if ($root -eq $sync -or $root.StartsWith($sync + '\') -or $root.StartsWith($sync + '/')) { $synced = $true }
+        }
+        if ($synced) {
+            Write-Warning ('The script folder is inside OneDrive. Output goes to the TEMP folder instead: {0}' -f $ScriptRoot)
+        } else {
+            $candidates += Join-Path (Join-Path $ScriptRoot 'InfraToolkit-Output') $ScriptName
+        }
+    }
+    $temp = $env:TEMP
+    if (-not $temp) { $temp = $env:TMPDIR }
+    if (-not $temp) { $temp = '/tmp' }
+    $candidates += Join-Path (Join-Path $temp 'InfraToolkit-Output') $ScriptName
+
+    foreach ($c in $candidates) {
+        try {
+            New-Item -ItemType Directory -Path $c -Force -ErrorAction Stop -WhatIf:$false -Confirm:$false | Out-Null
+            $probe = Join-Path $c ('.write-test-{0}' -f (Get-Random))
+            Set-Content -LiteralPath $probe -Value '' -ErrorAction Stop -WhatIf:$false -Confirm:$false
+            Remove-Item -LiteralPath $probe -Force -ErrorAction Stop -WhatIf:$false -Confirm:$false
+            return $c
+        } catch {
+            Write-Verbose ('Cannot write to {0}: {1}' -f $c, $_.Exception.Message)
+        }
+    }
+    throw ('No writable output folder. Tried: {0}. Give a folder with the output path parameter of the script.' -f ($candidates -join '; '))
+}
+
 function Format-Row {
     param([string]$Label, $Value)
     return (' {0,-24}: {1}' -f $Label, $Value)
@@ -395,7 +437,12 @@ function Invoke-Main {
     }
 
     # Export
-    $outDir = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($OutputPath)
+    $outDir = $OutputPath
+    if (-not $outDir) {
+        $outDir = Get-OutputFolder -ScriptRoot $PSScriptRoot -ScriptName 'Export-RemoteTlsCertificate'
+        $outDir = Join-Path $outDir (Get-Date -Format 'yyyyMMdd-HHmmss')
+    }
+    $outDir = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($outDir)
     New-Item -ItemType Directory -Path $outDir -Force | Out-Null
     $base = '{0}_{1}' -f (Get-SafeFileName $HostName), $Port
     $leafFile = Join-Path $outDir ('{0}.cer' -f $base)
@@ -414,6 +461,7 @@ function Invoke-Main {
             Write-Host (Format-Row ('Chain {0} saved' -f ($i + 1)) ('{0}  ({1})' -f $chainFile, $issuers[$i].Subject)) -ForegroundColor Green
         }
     }
+    Write-Host (Format-Row 'Output folder' $outDir) -ForegroundColor Cyan
     return $EXIT_OK
 }
 

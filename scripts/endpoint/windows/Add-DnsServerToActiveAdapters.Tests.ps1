@@ -115,7 +115,7 @@ BeforeAll {
     }
 
     function script:Invoke-Scenario {
-        param([object[]]$Adapters = (Get-DefaultAdapter), [hashtable]$Params = @{}, [hashtable]$Scenario = @{}, [string]$DnsServer = '192.0.2.53')
+        param([object[]]$Adapters = (Get-DefaultAdapter), [hashtable]$Params = @{}, [hashtable]$Scenario = @{}, [string]$DnsServer = '192.0.2.53', [string]$ScriptDir)
         $global:DnsScenario = @{
             Adapters = $Adapters; SetCalls = @(); Families = @(); Reads = @(); IpIfCalls = @()
             Elevated = $true; FailSet = ''; IgnoreSet = ''; DnsThrows = ''
@@ -123,15 +123,28 @@ BeforeAll {
         foreach ($k in $Scenario.Keys) { $global:DnsScenario[$k] = $Scenario[$k] }
 
         $out = Join-Path $TestDrive ([guid]::NewGuid().ToString('N'))
-        $output = & $script:Target -DnsServer $DnsServer @Params -OutputPath $out *>&1
+        if ($ScriptDir) {
+            # A copy of the script, run without -OutputPath: the default folder is next to the copy
+            $copy = Join-Path $ScriptDir (Split-Path -Leaf $script:Target)
+            Copy-Item -LiteralPath $script:Target -Destination $copy -Force
+            $output = & $copy -DnsServer $DnsServer @Params *>&1
+        } else {
+            $output = & $script:Target -DnsServer $DnsServer @Params -OutputPath $out *>&1
+        }
         $code = $LASTEXITCODE
+        $text = (@($output | ForEach-Object { [string]$_ }) -join "`n")
+        # With the default folder, the script prints where it wrote
+        if ($ScriptDir) {
+            $out = Join-Path $ScriptDir 'no-output-folder-printed'
+            if ($text -match 'Output folder: ([^\r\n]+)') { $out = $Matches[1].Trim() }
+        }
 
         $csv = Join-Path $out 'dns-servers.csv'
         $rows = @()
         if (Microsoft.PowerShell.Management\Test-Path -LiteralPath $csv) { $rows = @(Import-Csv -LiteralPath $csv) }
         return [pscustomobject]@{
             ExitCode = $code; Rows = $rows; Out = $out
-            Text     = (@($output | ForEach-Object { [string]$_ }) -join "`n")
+            Text     = $text
             SetCalls = @($global:DnsScenario.SetCalls)
         }
     }
@@ -419,6 +432,29 @@ Describe 'Add-DnsServerToActiveAdapters' {
             $r.ExitCode | Should -Be 2
             (Get-Row $r 'Ethernet0').Status | Should -Be 'FAILED'
             $r.Text | Should -Match 'is not in the list after the change'
+        }
+    }
+
+    Context 'Default output folder' {
+
+        It 'without the path parameter: InfraToolkit-Output\Add-DnsServerToActiveAdapters plus a timestamp folder, next to the script, also with -WhatIf' {
+            $dir = Join-Path $TestDrive ('Scripts-{0}' -f [guid]::NewGuid().ToString('N').Substring(0, 8))
+            Microsoft.PowerShell.Management\New-Item -ItemType Directory -Path $dir | Out-Null
+            $base = Join-Path (Join-Path $dir 'InfraToolkit-Output') 'Add-DnsServerToActiveAdapters'
+
+            $r = Invoke-Scenario -ScriptDir $dir
+            $r.ExitCode | Should -Be 1
+            $r.Rows.Count | Should -Be 4
+            Split-Path -Parent $r.Out | Should -Be $base
+            Split-Path -Leaf $r.Out   | Should -Match '^\d{8}-\d{6}$'
+
+            # -WhatIf must not stop the script from finding its folder, and writes only the report
+            $r = Invoke-Scenario -ScriptDir $dir -Params @{ Fix = $true; WhatIf = $true }
+            $r.ExitCode | Should -Be 1
+            $r.Rows.Count | Should -Be 4
+            $r.SetCalls.Count | Should -Be 0
+            Split-Path -Parent $r.Out | Should -Be $base
+            Microsoft.PowerShell.Management\Test-Path -LiteralPath (Join-Path $r.Out 'transcript.txt') | Should -BeFalse
         }
     }
 }

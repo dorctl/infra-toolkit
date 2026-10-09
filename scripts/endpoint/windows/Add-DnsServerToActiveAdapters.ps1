@@ -47,7 +47,9 @@
 
 .PARAMETER OutputPath
     Folder for the CSV report and the transcript.
-    Default: %USERPROFILE%\InfraToolkit-Output\Add-DnsServerToActiveAdapters\<timestamp>
+    Default: InfraToolkit-Output\Add-DnsServerToActiveAdapters\<timestamp> in the folder of the script
+    (falls back to %TEMP%\InfraToolkit-Output\Add-DnsServerToActiveAdapters\<timestamp> when that folder cannot be
+    written or is in OneDrive).
 
 .EXAMPLE
     .\Add-DnsServerToActiveAdapters.ps1 -DnsServer 192.0.2.53
@@ -84,8 +86,7 @@ param(
 
     [switch]$Fix,
 
-    [string]$OutputPath = (Join-Path $env:USERPROFILE ('InfraToolkit-Output\{0}\{1}' -f
-        ($MyInvocation.MyCommand.Name -replace '\.ps1$', ''), (Get-Date -Format 'yyyyMMdd-HHmmss')))
+    [string]$OutputPath
 )
 
 $ErrorActionPreference = 'Stop'
@@ -102,6 +103,47 @@ $script:ExitCode = $EXIT_NOT_RUN
 function Out-Line {
     param([string]$Text = '', [string]$Color = 'Gray')
     Write-Host $Text -ForegroundColor $Color
+}
+
+function Get-OutputFolder {
+    # Default output folder: InfraToolkit-Output\<script name> next to the script file.
+    # Falls back to %TEMP%\InfraToolkit-Output\<script name> when the script was not run from a file,
+    # when its folder is inside OneDrive (outputs must not be synced), or when that folder cannot be written.
+    # Its write test always runs, also under -WhatIf and -Confirm.
+    param([string]$ScriptRoot, [string]$ScriptName)
+
+    $candidates = @()
+    if ($ScriptRoot) {
+        $root = $ScriptRoot.TrimEnd('\', '/').ToLowerInvariant()
+        $synced = $false
+        foreach ($s in @($env:OneDrive, $env:OneDriveCommercial, $env:OneDriveConsumer)) {
+            if (-not $s) { continue }
+            $sync = $s.TrimEnd('\', '/').ToLowerInvariant()
+            if ($root -eq $sync -or $root.StartsWith($sync + '\') -or $root.StartsWith($sync + '/')) { $synced = $true }
+        }
+        if ($synced) {
+            Write-Warning ('The script folder is inside OneDrive. Output goes to the TEMP folder instead: {0}' -f $ScriptRoot)
+        } else {
+            $candidates += Join-Path (Join-Path $ScriptRoot 'InfraToolkit-Output') $ScriptName
+        }
+    }
+    $temp = $env:TEMP
+    if (-not $temp) { $temp = $env:TMPDIR }
+    if (-not $temp) { $temp = '/tmp' }
+    $candidates += Join-Path (Join-Path $temp 'InfraToolkit-Output') $ScriptName
+
+    foreach ($c in $candidates) {
+        try {
+            New-Item -ItemType Directory -Path $c -Force -ErrorAction Stop -WhatIf:$false -Confirm:$false | Out-Null
+            $probe = Join-Path $c ('.write-test-{0}' -f (Get-Random))
+            Set-Content -LiteralPath $probe -Value '' -ErrorAction Stop -WhatIf:$false -Confirm:$false
+            Remove-Item -LiteralPath $probe -Force -ErrorAction Stop -WhatIf:$false -Confirm:$false
+            return $c
+        } catch {
+            Write-Verbose ('Cannot write to {0}: {1}' -f $c, $_.Exception.Message)
+        }
+    }
+    throw ('No writable output folder. Tried: {0}. Give a folder with the output path parameter of the script.' -f ($candidates -join '; '))
 }
 
 function ConvertTo-Ipv4Text {
@@ -334,6 +376,17 @@ function Invoke-Main {
 
 $transcript = $null
 try {
+    if (-not $OutputPath) {
+        # The helper creates and test-writes the folder: run it without -WhatIf and -Confirm, or a
+        # -WhatIf run would find no writable folder
+        $OutputPath = & {
+            param([string]$Root)
+            $WhatIfPreference = $false
+            $ConfirmPreference = 'None'
+            Get-OutputFolder -ScriptRoot $Root -ScriptName 'Add-DnsServerToActiveAdapters'
+        } $PSScriptRoot
+        $OutputPath = Join-Path $OutputPath (Get-Date -Format 'yyyyMMdd-HHmmss')
+    }
     New-Item -ItemType Directory -Path $OutputPath -Force -WhatIf:$false -Confirm:$false | Out-Null
     if ($Fix -and -not $WhatIfPreference) {
         $transcript = Join-Path $OutputPath 'transcript.txt'
@@ -345,6 +398,7 @@ try {
     Out-Line ('ERROR: {0}' -f $_.Exception.Message) 'Red'
     $script:ExitCode = $EXIT_NOT_RUN
 } finally {
+    if ($OutputPath) { Out-Line ('Output folder: {0}' -f $OutputPath) 'Cyan' }
     if ($transcript) {
         Out-Line ('Transcript: {0}' -f $transcript) 'Cyan'
         Stop-Transcript | Out-Null

@@ -289,6 +289,26 @@ Describe 'Watch-HostPing' {
         }
     }
 
+    Context 'Default log folder' {
+
+        It 'without -OutputPath the log goes to InfraToolkit-Output\Watch-HostPing in the folder of the script' {
+            $dir = Join-Path $TestDrive 'script-copy'
+            $null = New-Item -ItemType Directory -Path $dir -Force
+            Copy-Item -LiteralPath $script:Target -Destination $dir
+            Set-PingMock -Shape Core
+            $global:PingScenario = @{ Shape = 'Core'; Steps = @('R5'); Index = 0; Calls = @(); Sleeps = @() }
+            $run = @{ ComputerName = 'SRV01'; Count = 1; IntervalSeconds = 0 }
+            $screen = & (Join-Path $dir 'Watch-HostPing.ps1') @run *>&1 | Out-String
+            $LASTEXITCODE | Should -Be 0
+            $expected = Join-Path (Join-Path $dir 'InfraToolkit-Output') 'Watch-HostPing'
+            $logs = @(Get-ChildItem -LiteralPath $expected -Filter 'Ping-SRV01-*.log' -File)
+            $logs.Count | Should -Be 1
+            @(Get-ChildItem -LiteralPath $expected -Directory).Count | Should -Be 0
+            (Get-Content -LiteralPath $logs[0].FullName)[0] | Should -Be 'Target host = SRV01'
+            $screen | Should -Match ('Log file  : ' + [regex]::Escape($logs[0].FullName))
+        }
+    }
+
     Context 'Errors' {
 
         It 'host name that cannot be resolved on the first request: exit 3, no summary' {

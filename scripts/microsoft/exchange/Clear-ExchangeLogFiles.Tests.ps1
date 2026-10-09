@@ -57,14 +57,15 @@ BeforeAll {
     }
 
     function script:Invoke-Scenario {
-        param([hashtable]$Params = @{}, [switch]$NoExchange, [string]$Root = (New-TestRoot))
+        param([hashtable]$Params = @{}, [switch]$NoExchange, [string]$Root = (New-TestRoot), [string]$Script = $script:Target, [switch]$DefaultOutput)
         $root = $Root
         $files = New-TestServer $root
         if ($NoExchange) { $env:ExchangeInstallPath = $null }
 
         $run = @{ OutputPath = (Join-Path $root 'out'); LogPath = (Join-Path $root 'log') }
+        if ($DefaultOutput) { $run = @{} }
         foreach ($k in $Params.Keys) { $run[$k] = $Params[$k] }
-        $text = & $script:Target @run *>&1 | Out-String
+        $text = & $Script @run *>&1 | Out-String
         $code = $LASTEXITCODE
 
         $log = Join-Path $root 'log'
@@ -85,6 +86,14 @@ BeforeAll {
         $left = @()
         foreach ($k in $Result.Files.Keys) { if (Test-Path -LiteralPath $Result.Files[$k]) { $left += $k } }
         return ($left | Sort-Object)
+    }
+
+    # A copy of the script in its own TestDrive folder, to test the default output folder next to the script
+    function script:Copy-TestScript {
+        $dir = Join-Path $TestDrive ('copy-' + [guid]::NewGuid().ToString('N'))
+        $null = New-Item -ItemType Directory -Path $dir
+        Copy-Item -LiteralPath $script:Target -Destination $dir
+        return (Join-Path $dir (Split-Path -Leaf $script:Target))
     }
 
     $script:AllFiles = @('BlgOld', 'DbEdb', 'DbLog', 'EtlEdge', 'EtlOld', 'IisNew', 'IisOld', 'LogNew', 'ProxyOld', 'TxtOld')
@@ -312,6 +321,36 @@ Describe 'Clear-ExchangeLogFiles' {
             $r = Invoke-Scenario -Root $root -Params @{ Path = @(Join-Path $root 'Exchange Server/V15/Mailbox') }
             $r.ExitCode | Should -Be 3
             $r.Rows[0].Note | Should -Be 'REFUSED: database or transaction log folder (Exchange Mailbox folder)'
+        }
+    }
+
+    Context 'Default output folder' {
+
+        It 'without -OutputPath and -LogPath: report, lists and transcript in InfraToolkit-Output next to the script' {
+            $copy = Copy-TestScript
+            $base = Join-Path (Join-Path (Split-Path -Parent $copy) 'InfraToolkit-Output') 'Clear-ExchangeLogFiles'
+            $r = Invoke-Scenario -Script $copy -DefaultOutput -Params $FixParams
+            $r.ExitCode | Should -Be 0
+            Get-Remaining $r | Should -Be @('DbEdb', 'DbLog', 'EtlEdge', 'IisNew', 'LogNew', 'TxtOld')
+            $stamps = @(Get-ChildItem -LiteralPath $base -Directory)
+            $stamps.Count   | Should -Be 1
+            $stamps[0].Name | Should -Match '^\d{8}-\d{6}$'
+            $csv = Join-Path $stamps[0].FullName 'results.csv'
+            @(Import-Csv -LiteralPath $csv).Count | Should -Be 4
+            @(Get-ChildItem -LiteralPath $base -Filter 'deleted-files-*.csv').Count | Should -Be 1
+            $transcripts = @(Get-ChildItem -LiteralPath $base -Filter 'transcript-*.txt')
+            $transcripts.Count | Should -Be 1
+            $r.Text | Should -Match ([regex]::Escape($csv))
+            $r.Text | Should -Match ([regex]::Escape($transcripts[0].FullName))
+
+            # -WhatIf: the report is still saved, nothing deleted, no transcript and no lists
+            $copy = Copy-TestScript
+            $base = Join-Path (Join-Path (Split-Path -Parent $copy) 'InfraToolkit-Output') 'Clear-ExchangeLogFiles'
+            $r = Invoke-Scenario -Script $copy -DefaultOutput -Params @{ Fix = $true; WhatIf = $true }
+            $r.ExitCode | Should -Be 1
+            Get-Remaining $r | Should -Be $script:AllFiles
+            @(Get-ChildItem -LiteralPath $base -Filter 'results.csv' -Recurse).Count | Should -Be 1
+            @(Get-ChildItem -LiteralPath $base -File).Count | Should -Be 0
         }
     }
 }

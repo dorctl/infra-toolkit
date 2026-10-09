@@ -8,6 +8,8 @@
     Reads the hardware details of each computer with Get-CimInstance and writes one row per computer
     to a CSV file. Run it on each computer (for example from a logon script or a scheduled task) with
     -CsvPath on a share, so many computers write to one file, or from an admin station with -ComputerName.
+    Without -CsvPath the file is next to the script, so a script started from a share where the computers
+    can write also gives one shared file.
 
     Columns, the same for every computer so the file stays consistent:
         ComputerName, Manufacturer, Model, SerialNumber, BiosVersion, OperatingSystem, OsVersion, Cpu,
@@ -51,7 +53,9 @@
 
 .PARAMETER CsvPath
     The inventory file. It can be a UNC path on a share that many computers write to.
-    Default: %USERPROFILE%\InfraToolkit-Output\Export-HardwareInventory\hardware-inventory.csv
+    Default: InfraToolkit-Output\Export-HardwareInventory\hardware-inventory.csv in the folder of the script
+    (falls back to %TEMP%\InfraToolkit-Output\Export-HardwareInventory\hardware-inventory.csv when that folder
+    cannot be written or is in OneDrive).
 
 .EXAMPLE
     .\Export-HardwareInventory.ps1
@@ -78,8 +82,7 @@
 param(
     [string[]]$ComputerName = @($env:COMPUTERNAME),
 
-    [string]$CsvPath = (Join-Path $env:USERPROFILE ('InfraToolkit-Output\{0}\hardware-inventory.csv' -f
-        ($MyInvocation.MyCommand.Name -replace '\.ps1$', '')))
+    [string]$CsvPath
 )
 
 $ErrorActionPreference = 'Stop'
@@ -101,6 +104,47 @@ $StaleLockMinutes   = 10
 $script:ExitCode = $EXIT_NOT_RUN
 
 # ------------------------------------------------------------------ helpers
+function Get-OutputFolder {
+    # Default output folder: InfraToolkit-Output\<script name> next to the script file.
+    # Falls back to %TEMP%\InfraToolkit-Output\<script name> when the script was not run from a file,
+    # when its folder is inside OneDrive (outputs must not be synced), or when that folder cannot be written.
+    # Its write test always runs, also under -WhatIf and -Confirm.
+    param([string]$ScriptRoot, [string]$ScriptName)
+
+    $candidates = @()
+    if ($ScriptRoot) {
+        $root = $ScriptRoot.TrimEnd('\', '/').ToLowerInvariant()
+        $synced = $false
+        foreach ($s in @($env:OneDrive, $env:OneDriveCommercial, $env:OneDriveConsumer)) {
+            if (-not $s) { continue }
+            $sync = $s.TrimEnd('\', '/').ToLowerInvariant()
+            if ($root -eq $sync -or $root.StartsWith($sync + '\') -or $root.StartsWith($sync + '/')) { $synced = $true }
+        }
+        if ($synced) {
+            Write-Warning ('The script folder is inside OneDrive. Output goes to the TEMP folder instead: {0}' -f $ScriptRoot)
+        } else {
+            $candidates += Join-Path (Join-Path $ScriptRoot 'InfraToolkit-Output') $ScriptName
+        }
+    }
+    $temp = $env:TEMP
+    if (-not $temp) { $temp = $env:TMPDIR }
+    if (-not $temp) { $temp = '/tmp' }
+    $candidates += Join-Path (Join-Path $temp 'InfraToolkit-Output') $ScriptName
+
+    foreach ($c in $candidates) {
+        try {
+            New-Item -ItemType Directory -Path $c -Force -ErrorAction Stop -WhatIf:$false -Confirm:$false | Out-Null
+            $probe = Join-Path $c ('.write-test-{0}' -f (Get-Random))
+            Set-Content -LiteralPath $probe -Value '' -ErrorAction Stop -WhatIf:$false -Confirm:$false
+            Remove-Item -LiteralPath $probe -Force -ErrorAction Stop -WhatIf:$false -Confirm:$false
+            return $c
+        } catch {
+            Write-Verbose ('Cannot write to {0}: {1}' -f $c, $_.Exception.Message)
+        }
+    }
+    throw ('No writable output folder. Tried: {0}. Give a folder with the output path parameter of the script.' -f ($candidates -join '; '))
+}
+
 function Test-LocalComputer {
     param([string]$Name)
     return ($Name -eq '.' -or $Name -eq 'localhost' -or $Name -eq $env:COMPUTERNAME)
@@ -404,6 +448,9 @@ function Invoke-Main {
         return $EXIT_ACTION
     }
 
+    if (-not $CsvPath) {
+        $CsvPath = Join-Path (Get-OutputFolder -ScriptRoot $PSScriptRoot -ScriptName 'Export-HardwareInventory') 'hardware-inventory.csv'
+    }
     $folder = Split-Path -Path $CsvPath -Parent
     if ($folder -and -not (Test-Path -LiteralPath $folder)) { New-Item -ItemType Directory -Path $folder -Force | Out-Null }
 

@@ -45,11 +45,15 @@
 
 .PARAMETER OutputPath
     Folder for the report (results.csv).
-    Default: %USERPROFILE%\InfraToolkit-Output\Clear-ExchangeLogFiles\<timestamp>
+    Default: InfraToolkit-Output\Clear-ExchangeLogFiles\<timestamp> in the folder of the script
+    (falls back to %TEMP%\InfraToolkit-Output\Clear-ExchangeLogFiles\<timestamp> when that folder cannot be
+    written or is in OneDrive).
 
 .PARAMETER LogPath
     Folder for the transcript and the lists of deleted and failed files of a run with -Fix.
-    Default: %USERPROFILE%\InfraToolkit-Output\Clear-ExchangeLogFiles
+    Default: InfraToolkit-Output\Clear-ExchangeLogFiles in the folder of the script
+    (falls back to %TEMP%\InfraToolkit-Output\Clear-ExchangeLogFiles when that folder cannot be written
+    or is in OneDrive).
 
 .EXAMPLE
     .\Clear-ExchangeLogFiles.ps1
@@ -86,11 +90,9 @@ param(
 
     [switch]$Fix,
 
-    [string]$OutputPath = (Join-Path $env:USERPROFILE ('InfraToolkit-Output\{0}\{1}' -f
-        ($MyInvocation.MyCommand.Name -replace '\.ps1$', ''), (Get-Date -Format 'yyyyMMdd-HHmmss'))),
+    [string]$OutputPath,
 
-    [string]$LogPath = (Join-Path $env:USERPROFILE ('InfraToolkit-Output\{0}' -f
-        ($MyInvocation.MyCommand.Name -replace '\.ps1$', '')))
+    [string]$LogPath
 )
 
 $ErrorActionPreference = 'Stop'
@@ -112,6 +114,55 @@ $script:Stamp   = Get-Date -Format 'yyyyMMdd-HHmmss'
 $script:Folders = @()
 
 # ------------------------------------------------------------------ helpers
+function Get-OutputFolder {
+    # Default output folder: InfraToolkit-Output\<script name> next to the script file.
+    # Falls back to %TEMP%\InfraToolkit-Output\<script name> when the script was not run from a file,
+    # when its folder is inside OneDrive (outputs must not be synced), or when that folder cannot be written.
+    # Its write test always runs, also under -WhatIf and -Confirm.
+    param([string]$ScriptRoot, [string]$ScriptName)
+
+    $candidates = @()
+    if ($ScriptRoot) {
+        $root = $ScriptRoot.TrimEnd('\', '/').ToLowerInvariant()
+        $synced = $false
+        foreach ($s in @($env:OneDrive, $env:OneDriveCommercial, $env:OneDriveConsumer)) {
+            if (-not $s) { continue }
+            $sync = $s.TrimEnd('\', '/').ToLowerInvariant()
+            if ($root -eq $sync -or $root.StartsWith($sync + '\') -or $root.StartsWith($sync + '/')) { $synced = $true }
+        }
+        if ($synced) {
+            Write-Warning ('The script folder is inside OneDrive. Output goes to the TEMP folder instead: {0}' -f $ScriptRoot)
+        } else {
+            $candidates += Join-Path (Join-Path $ScriptRoot 'InfraToolkit-Output') $ScriptName
+        }
+    }
+    $temp = $env:TEMP
+    if (-not $temp) { $temp = $env:TMPDIR }
+    if (-not $temp) { $temp = '/tmp' }
+    $candidates += Join-Path (Join-Path $temp 'InfraToolkit-Output') $ScriptName
+
+    foreach ($c in $candidates) {
+        try {
+            New-Item -ItemType Directory -Path $c -Force -ErrorAction Stop -WhatIf:$false -Confirm:$false | Out-Null
+            $probe = Join-Path $c ('.write-test-{0}' -f (Get-Random))
+            Set-Content -LiteralPath $probe -Value '' -ErrorAction Stop -WhatIf:$false -Confirm:$false
+            Remove-Item -LiteralPath $probe -Force -ErrorAction Stop -WhatIf:$false -Confirm:$false
+            return $c
+        } catch {
+            Write-Verbose ('Cannot write to {0}: {1}' -f $c, $_.Exception.Message)
+        }
+    }
+    throw ('No writable output folder. Tried: {0}. Give a folder with the output path parameter of the script.' -f ($candidates -join '; '))
+}
+
+function Get-DefaultOutputFolder {
+    # Get-OutputFolder with -WhatIf and -Confirm off: its write test creates and removes a file, which
+    # under -WhatIf is never created (the folder would be rejected) and under -Confirm asks each time.
+    $WhatIfPreference = $false
+    $ConfirmPreference = 'None'
+    return (Get-OutputFolder -ScriptRoot $PSScriptRoot -ScriptName 'Clear-ExchangeLogFiles')
+}
+
 function Out-Line {
     param([string]$Text = '', [string]$Color = 'Gray')
     Write-Host $Text -ForegroundColor $Color
@@ -331,6 +382,9 @@ function Invoke-Main {
     }
 
     if ($results.Count -gt 0) {
+        if (-not $script:LogPath) {
+            $script:LogPath = Get-DefaultOutputFolder
+        }
         New-Item -ItemType Directory -Path $LogPath -Force -WhatIf:$false -Confirm:$false | Out-Null
         Save-FileList @($results | Where-Object { $_.Result -eq 'Deleted' }) 'deleted-files' @('Path', 'LastWriteTime', 'Bytes')
         Save-FileList @($results | Where-Object { $_.Result -eq 'Failed' }) 'failed-files' @('Path', 'LastWriteTime', 'Bytes', 'Error')
@@ -359,6 +413,9 @@ $script:ExitCode = $EXIT_NOT_RUN
 $transcript = $null
 try {
     if ($Fix -and -not $WhatIfPreference) {
+        if (-not $LogPath) {
+            $LogPath = Get-DefaultOutputFolder
+        }
         New-Item -ItemType Directory -Path $LogPath -Force -WhatIf:$false -Confirm:$false | Out-Null
         $transcript = Join-Path $LogPath ('transcript-{0}.txt' -f $script:Stamp)
         Start-Transcript -LiteralPath $transcript -WhatIf:$false -Confirm:$false | Out-Null
@@ -371,6 +428,10 @@ try {
 } finally {
     if ($script:Folders.Count -gt 0) {
         try {
+            if (-not $OutputPath) {
+                $OutputPath = Get-DefaultOutputFolder
+                $OutputPath = Join-Path $OutputPath $script:Stamp
+            }
             New-Item -ItemType Directory -Path $OutputPath -Force -WhatIf:$false -Confirm:$false | Out-Null
             $csv = Join-Path $OutputPath 'results.csv'
             $script:Folders | ForEach-Object { ConvertTo-ReportRow $_ } |

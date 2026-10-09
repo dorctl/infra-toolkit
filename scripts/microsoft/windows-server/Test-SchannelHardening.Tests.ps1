@@ -158,7 +158,7 @@ BeforeAll {
     }
 
     function script:Invoke-Scenario {
-        param([switch]$Compliant, [scriptblock]$Setup, [hashtable]$Params = @{}, [hashtable]$Scenario = @{})
+        param([switch]$Compliant, [scriptblock]$Setup, [hashtable]$Params = @{}, [hashtable]$Scenario = @{}, [string]$ScriptDir)
         $global:SchReg = @{}
         $global:SchScenario = @{ Elevated = $true; Calls = @(); Exports = @(); FailAdd = ''; FailExport = $false; QueryThrows = '' }
         foreach ($k in $Scenario.Keys) { $global:SchScenario[$k] = $Scenario[$k] }
@@ -170,8 +170,21 @@ BeforeAll {
         $before = Get-SchSnapshot
 
         $out = Join-Path $TestDrive ([guid]::NewGuid().ToString('N'))
-        $output = & $script:Target @Params -OutputPath $out *>&1
+        if ($ScriptDir) {
+            # A copy of the script, run without -OutputPath: the default folder is next to the copy
+            $copy = Join-Path $ScriptDir (Split-Path -Leaf $script:Target)
+            Copy-Item -LiteralPath $script:Target -Destination $copy -Force
+            $output = & $copy @Params *>&1
+        } else {
+            $output = & $script:Target @Params -OutputPath $out *>&1
+        }
         $code = $LASTEXITCODE
+        $text = (@($output | ForEach-Object { [string]$_ }) -join "`n")
+        # With the default folder, the script prints where it wrote
+        if ($ScriptDir) {
+            $out = Join-Path $ScriptDir 'no-output-folder-printed'
+            if ($text -match 'Output folder: ([^\r\n]+)') { $out = $Matches[1].Trim() }
+        }
 
         $csv = Join-Path $out 'schannel-report.csv'
         $rows = @()
@@ -179,7 +192,7 @@ BeforeAll {
         $env:PROCESSOR_ARCHITEW6432 = $null
         return [pscustomobject]@{
             ExitCode = $code; Rows = $rows; Out = $out
-            Text     = (@($output | ForEach-Object { [string]$_ }) -join "`n")
+            Text     = $text
             Adds     = @($global:SchScenario.Calls | Where-Object { $_[0] -eq 'add' })
             Exports  = @($global:SchScenario.Exports)
             Changed  = ((Get-SchSnapshot) -ne $before)
@@ -534,6 +547,29 @@ Describe 'Test-SchannelHardening' {
             (Get-Row $r 'RC4 128/128').Status    | Should -Be 'FAILED'
             (Get-Row $r 'Triple DES 168').Status | Should -Be 'SET'
             $r.Text | Should -Match 'Access is denied'
+        }
+    }
+
+    Context 'Default output folder' {
+
+        It 'without the path parameter: InfraToolkit-Output\Test-SchannelHardening plus a timestamp folder, next to the script, also with -WhatIf' {
+            $dir = Join-Path $TestDrive ('Scripts-{0}' -f [guid]::NewGuid().ToString('N').Substring(0, 8))
+            Microsoft.PowerShell.Management\New-Item -ItemType Directory -Path $dir | Out-Null
+            $base = Join-Path (Join-Path $dir 'InfraToolkit-Output') 'Test-SchannelHardening'
+
+            $r = Invoke-Scenario -Compliant -ScriptDir $dir
+            $r.ExitCode | Should -Be 0
+            $r.Rows.Count | Should -Be 31
+            Split-Path -Parent $r.Out | Should -Be $base
+            Split-Path -Leaf $r.Out   | Should -Match '^\d{8}-\d{6}$'
+
+            # -WhatIf must not stop the script from finding its folder, and writes only the report
+            $r = Invoke-Scenario -ScriptDir $dir -Params @{ Fix = $true; WhatIf = $true }
+            $r.ExitCode | Should -Be 1
+            $r.Rows.Count | Should -Be 31
+            $r.Exports.Count | Should -Be 0
+            Split-Path -Parent $r.Out | Should -Be $base
+            Microsoft.PowerShell.Management\Test-Path -LiteralPath (Join-Path $r.Out 'transcript.txt') | Should -BeFalse
         }
     }
 }

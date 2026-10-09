@@ -177,6 +177,92 @@ Describe 'Copy-FolderWithRobocopy' {
         }
     }
 
+    Context 'Default log folder' {
+
+        BeforeEach {
+            $script:SavedTemp = [Environment]::GetEnvironmentVariable('TEMP')
+            $env:TEMP = Join-Path $TestDrive ('temp-' + [guid]::NewGuid().ToString('N'))
+            $null = New-Item -ItemType Directory -Path $env:TEMP -Force
+        }
+
+        AfterEach {
+            [Environment]::SetEnvironmentVariable('TEMP', $script:SavedTemp)
+        }
+
+        It 'without -LogPath the log and transcript go to InfraToolkit-Output\Copy-FolderWithRobocopy next to the script' {
+            $root = Join-Path $TestDrive ([guid]::NewGuid().ToString('N'))
+            $dir = Join-Path $root 'scripts'
+            $src = Join-Path $root 'source'
+            $null = New-Item -ItemType Directory -Path $dir, $src -Force
+            Copy-Item -LiteralPath $script:Target -Destination $dir
+            $global:RoboScenario = @{ ExitCode = 1; Calls = @() }
+            $text = & (Join-Path $dir 'Copy-FolderWithRobocopy.ps1') -Source $src -Destination (Join-Path $root 'dest') -Confirm:$false *>&1 | Out-String
+            $LASTEXITCODE | Should -Be 0
+            $expected = Join-Path (Join-Path $dir 'InfraToolkit-Output') 'Copy-FolderWithRobocopy'
+            $a = @($global:RoboScenario.Calls[0])
+            $a[-3] | Should -BeLike ('/UNILOG+:' + (Join-Path $expected 'robocopy-*.log'))
+            @(Get-ChildItem -LiteralPath $expected -Filter 'transcript-*.txt' -File).Count | Should -Be 1
+            @(Get-ChildItem -LiteralPath $expected -Directory).Count | Should -Be 0
+            $text | Should -Match ('Log file\s+: ' + [regex]::Escape($expected))
+            Test-Path -LiteralPath (Join-Path $env:TEMP 'InfraToolkit-Output') | Should -BeFalse
+        }
+
+        It 'without -LogPath, -WhatIf still finds the folder and lists with /L' {
+            $root = Join-Path $TestDrive ([guid]::NewGuid().ToString('N'))
+            $dir = Join-Path $root 'scripts'
+            $src = Join-Path $root 'source'
+            $null = New-Item -ItemType Directory -Path $dir, $src -Force
+            Copy-Item -LiteralPath $script:Target -Destination $dir
+            $global:RoboScenario = @{ ExitCode = 1; Calls = @() }
+            & (Join-Path $dir 'Copy-FolderWithRobocopy.ps1') -Source $src -Destination (Join-Path $root 'dest') -WhatIf *> $null
+            $LASTEXITCODE | Should -Be 0
+            $a = @($global:RoboScenario.Calls[0])
+            $a | Should -Contain '/L'
+            $a[-3] | Should -BeLike ('/UNILOG+:' + (Join-Path (Join-Path (Join-Path $dir 'InfraToolkit-Output') 'Copy-FolderWithRobocopy') 'robocopy-*.log'))
+        }
+
+        It 'script folder inside the source: the log goes to TEMP, not into the source' {
+            $root = Join-Path $TestDrive ([guid]::NewGuid().ToString('N'))
+            $src = Join-Path $root 'source'
+            $dir = Join-Path $src 'Scripts'
+            $null = New-Item -ItemType Directory -Path $dir -Force
+            Copy-Item -LiteralPath $script:Target -Destination $dir
+            $global:RoboScenario = @{ ExitCode = 1; Calls = @() }
+            $text = & (Join-Path $dir 'Copy-FolderWithRobocopy.ps1') -Source $src -Destination (Join-Path $root 'dest') -Confirm:$false *>&1 | Out-String
+            $LASTEXITCODE | Should -Be 0
+            $text | Should -Match 'The script folder is inside the source: the log goes to the TEMP folder'
+            $expected = Join-Path (Join-Path $env:TEMP 'InfraToolkit-Output') 'Copy-FolderWithRobocopy'
+            @($global:RoboScenario.Calls[0])[-3] | Should -BeLike ('/UNILOG+:' + (Join-Path $expected 'robocopy-*.log'))
+            Test-Path -LiteralPath (Join-Path $dir 'InfraToolkit-Output') | Should -BeFalse
+            $text | Should -Not -Match 'inside the source: robocopy copies the log too'
+        }
+
+        It 'destination contains the script folder: the log stays next to the script' {
+            $root = Join-Path $TestDrive ([guid]::NewGuid().ToString('N'))
+            $dst = Join-Path $root 'dest'
+            $dir = Join-Path $dst 'Scripts'
+            $src = Join-Path $root 'source'
+            $null = New-Item -ItemType Directory -Path $dir, $src -Force
+            Copy-Item -LiteralPath $script:Target -Destination $dir
+            $global:RoboScenario = @{ ExitCode = 1; Calls = @() }
+            & (Join-Path $dir 'Copy-FolderWithRobocopy.ps1') -Source $src -Destination $dst -Confirm:$false *> $null
+            $LASTEXITCODE | Should -Be 0
+            @($global:RoboScenario.Calls[0])[-3] | Should -BeLike ('/UNILOG+:' + (Join-Path (Join-Path (Join-Path $dir 'InfraToolkit-Output') 'Copy-FolderWithRobocopy') 'robocopy-*.log'))
+        }
+
+        It 'explicit -LogPath inside the source: warning that the log is copied too' {
+            $r = Invoke-Scenario -Params @{ Confirm = $false; LogPath = (Join-Path (Join-Path $TestDrive 'unused') 'x') }
+            $r.Output | Should -Not -Match 'robocopy copies the log too'
+            $root = Join-Path $TestDrive ([guid]::NewGuid().ToString('N'))
+            $src = Join-Path $root 'source'
+            $null = New-Item -ItemType Directory -Path $src -Force
+            $global:RoboScenario = @{ ExitCode = 1; Calls = @() }
+            $text = & $script:Target -Source $src -Destination (Join-Path $root 'dest') -LogPath (Join-Path $src 'logs') -Confirm:$false *>&1 | Out-String
+            $LASTEXITCODE | Should -Be 0
+            $text | Should -Match 'is inside the source: robocopy copies the log too'
+        }
+    }
+
     Context 'Exit codes' {
 
         It 'robocopy <Robo> -> exit <Expected>' -TestCases @(

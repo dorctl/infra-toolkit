@@ -232,6 +232,31 @@ Describe 'Invoke-VeeamRescan' {
         }
     }
 
+    Context 'Default log folder' {
+
+        It 'without -LogPath: a timestamp folder in InfraToolkit-Output\Invoke-VeeamRescan next to the script, nothing under -WhatIf' {
+            $folder = Join-Path $TestDrive 'default-log'
+            $null = New-Item -ItemType Directory -Path $folder -Force
+            Copy-Item -LiteralPath $script:Target -Destination $folder
+            $copy = Join-Path $folder 'Invoke-VeeamRescan.ps1'
+            $base = Join-Path $folder 'InfraToolkit-Output'
+            $global:VeeamScenario = @{ Servers = $script:Servers; Repositories = $script:Repositories; Calls = @(); Rescans = @(); FailOn = @(); WarnOn = @(); ServerError = '' }
+
+            & $copy -Server 'PROXY01' -WhatIf *> $null
+            $LASTEXITCODE | Should -Be 0
+            Test-Path -LiteralPath $base | Should -BeFalse
+
+            $output = & $copy -Server 'PROXY01' *>&1 | Out-String
+            $LASTEXITCODE | Should -Be 0
+            $runs = @(Get-ChildItem -LiteralPath (Join-Path $base 'Invoke-VeeamRescan') -Directory)
+            $runs.Count | Should -Be 1
+            $runs[0].Name | Should -Match '^\d{8}-\d{6}$'
+            Test-Path -LiteralPath (Join-Path $runs[0].FullName 'transcript.txt') | Should -BeTrue
+            (Import-Csv -LiteralPath (Join-Path $runs[0].FullName 'rescan-results.csv')).Name | Should -Be 'PROXY01'
+            ($output -replace '\s', '') | Should -Match ([regex]::Escape((Join-Path $runs[0].FullName 'transcript.txt')))
+        }
+    }
+
     Context 'Could not run' {
 
         It 'Veeam PowerShell not available: exit 3, nothing rescanned' {
