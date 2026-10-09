@@ -9,5 +9,7 @@ Exchange Server on-premises: mailboxes, databases, DAG, transport, connectors, c
 ## Scripts
 
 <!-- SCRIPTS:START -->
-_No scripts yet._
+| Script | Description | Mode | Verified |
+|---|---|---|---|
+| [Set-ExchangeVirtualDirectoryUrls.ps1](Set-ExchangeVirtualDirectoryUrls.ps1) | Checks Exchange virtual directory, Autodiscover and Outlook Anywhere URLs for a namespace, sets them with -Fix. | Read-only (changes with -Fix) | not yet |
 <!-- SCRIPTS:END -->

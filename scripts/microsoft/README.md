@@ -25,4 +25,5 @@ Microsoft infrastructure services: Active Directory, DNS, Exchange on-premises, 
 | Script | Description | Mode | Verified |
 |---|---|---|---|
 | [dns/Test-KSK2024Readiness.ps1](dns/Test-KSK2024Readiness.ps1) | Read-only readiness check for the DNSSEC Root KSK rollover to KSK-2024 (key tag 38696) | Read-only | not yet |
+| [exchange/Set-ExchangeVirtualDirectoryUrls.ps1](exchange/Set-ExchangeVirtualDirectoryUrls.ps1) | Checks Exchange virtual directory, Autodiscover and Outlook Anywhere URLs for a namespace, sets them with -Fix. | Read-only (changes with -Fix) | not yet |
 <!-- SCRIPTS:END -->
