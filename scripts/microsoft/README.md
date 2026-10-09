@@ -26,6 +26,7 @@ Microsoft infrastructure services: Active Directory, DNS, Exchange on-premises, 
 |---|---|---|---|
 | [dns/Test-KSK2024Readiness.ps1](dns/Test-KSK2024Readiness.ps1) | Read-only readiness check for the DNSSEC Root KSK rollover to KSK-2024 (key tag 38696) | Read-only | not yet |
 | [exchange/Clear-ExchangeLogFiles.ps1](exchange/Clear-ExchangeLogFiles.ps1) | Reports Exchange and IIS log files older than a retention period, and deletes them with -Fix. | Read-only (changes with -Fix) | not yet |
+| [exchange/Repair-ExchangeVssWriter.ps1](exchange/Repair-ExchangeVssWriter.ps1) | Checks the Microsoft Exchange Writer (VSS) and restarts the Microsoft Exchange Replication service with -Fix. | Read-only (changes with -Fix) | not yet |
 | [exchange/Set-ExchangeVirtualDirectoryUrls.ps1](exchange/Set-ExchangeVirtualDirectoryUrls.ps1) | Checks Exchange virtual directory, Autodiscover and Outlook Anywhere URLs for a namespace, sets them with -Fix. | Read-only (changes with -Fix) | not yet |
 | [windows-server/Test-SchannelHardening.ps1](windows-server/Test-SchannelHardening.ps1) | Checks TLS hardening: SCHANNEL protocols, ciphers, DH key size and .NET strong crypto. Fixes with -Fix. | Read-only (changes with -Fix) | not yet |
 <!-- SCRIPTS:END -->
