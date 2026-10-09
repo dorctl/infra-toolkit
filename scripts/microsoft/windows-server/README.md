@@ -11,5 +11,7 @@ Windows Server OS level: roles and features, updates, services, event logs, perf
 ## Scripts
 
 <!-- SCRIPTS:START -->
-_No scripts yet._
+| Script | Description | Mode | Verified |
+|---|---|---|---|
+| [Test-SchannelHardening.ps1](Test-SchannelHardening.ps1) | Checks TLS hardening: SCHANNEL protocols, ciphers, DH key size and .NET strong crypto. Fixes with -Fix. | Read-only (changes with -Fix) | not yet |
 <!-- SCRIPTS:END -->
