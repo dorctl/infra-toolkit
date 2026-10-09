@@ -177,8 +177,13 @@ Describe 'Clear-ExchangeLogFiles' {
         }
 
         It 'a file in use: the other files are deleted, the failure is listed, exit 2' {
-            Mock Remove-Item { throw 'The process cannot access the file because it is being used by another process.' } -ParameterFilter {
-                $LiteralPath -like '*HttpProxy_2026082001-1.LOG'
+            # Pester 6 does not fall back to the real command when no -ParameterFilter matches,
+            # so one default mock handles both cases (the real cmdlet through its CmdletInfo, no recursion).
+            Mock Remove-Item {
+                if ($LiteralPath -like '*HttpProxy_2026082001-1.LOG') {
+                    throw 'The process cannot access the file because it is being used by another process.'
+                }
+                & (Get-Command -Name Remove-Item -CommandType Cmdlet) @PesterBoundParameters
             }
             $r = Invoke-Scenario -Params $FixParams
             $r.ExitCode | Should -Be 2

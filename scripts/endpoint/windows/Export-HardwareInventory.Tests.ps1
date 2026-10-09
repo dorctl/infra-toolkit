@@ -436,7 +436,14 @@ Describe 'Export-HardwareInventory' {
             Invoke-Inventory -Csv $csv -Computers 'PC02' | Out-Null
             $before = Get-Content -LiteralPath $csv -Raw
             $global:InvScenario.DeniedFolder = Split-Path -Parent $csv
-            Mock Get-ChildItem { throw [System.UnauthorizedAccessException]::new('Access to the path is denied.') } -ParameterFilter { $LiteralPath -eq $global:InvScenario.DeniedFolder }
+            # Pester 6 does not fall back to the real command when no -ParameterFilter matches,
+            # so one default mock handles both cases (the real cmdlet through its CmdletInfo, no recursion).
+            Mock Get-ChildItem {
+                if ($LiteralPath -eq $global:InvScenario.DeniedFolder) {
+                    throw [System.UnauthorizedAccessException]::new('Access to the path is denied.')
+                }
+                & (Get-Command -Name Get-ChildItem -CommandType Cmdlet) @PesterBoundParameters
+            }
             $r = Invoke-Inventory -Csv $csv -Computers 'PC01'
             $r.ExitCode | Should -Be 3
             $r.Output | Should -Match 'ERROR: Access to the path is denied'
