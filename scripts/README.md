@@ -22,6 +22,7 @@ Every script here is **standalone**: one file, no dependency on `modules/`, so i
 |---|---|---|---|
 | [backup/veeam/Invoke-VeeamRescan.ps1](backup/veeam/Invoke-VeeamRescan.ps1) | Rescans Veeam Backup & Replication managed servers and backup repositories, all of them or the ones named. | Changes: runs a rescan of managed servers and repositories | not yet |
 | [endpoint/windows/Add-DnsServerToActiveAdapters.ps1](endpoint/windows/Add-DnsServerToActiveAdapters.ps1) | Reports the DNS servers of every active network adapter and adds a DNS server where it is missing (-Fix). | Read-only (changes with -Fix) | not yet |
+| [endpoint/windows/Export-HardwareInventory.ps1](endpoint/windows/Export-HardwareInventory.ps1) | Adds or updates the hardware of Windows computers (model, serial, CPU, RAM, IP, monitors) in a CSV inventory. | Read-only | not yet |
 | [endpoint/windows/Repair-PhantomKeyboardLayout.ps1](endpoint/windows/Repair-PhantomKeyboardLayout.ps1) | Finds keyboard layouts in the input switcher that are not in the user language list. Removes them with -Fix. | Read-only (changes with -Fix) | not yet |
 | [microsoft/dns/Test-KSK2024Readiness.ps1](microsoft/dns/Test-KSK2024Readiness.ps1) | Read-only readiness check for the DNSSEC Root KSK rollover to KSK-2024 (key tag 38696) | Read-only | not yet |
 | [microsoft/exchange/Clear-ExchangeLogFiles.ps1](microsoft/exchange/Clear-ExchangeLogFiles.ps1) | Reports Exchange and IIS log files older than a retention period, and deletes them with -Fix. | Read-only (changes with -Fix) | not yet |
