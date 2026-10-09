@@ -7,5 +7,7 @@ When 3 scripts here share a topic, move them to a proper folder.
 ## Scripts
 
 <!-- SCRIPTS:START -->
-_No scripts yet._
+| Script | Description | Mode | Verified |
+|---|---|---|---|
+| [Export-RemoteTlsCertificate.ps1](Export-RemoteTlsCertificate.ps1) | Connects to a TLS service (host and port) and exports the certificate it presents to a .cer file. | Read-only | not yet |
 <!-- SCRIPTS:END -->

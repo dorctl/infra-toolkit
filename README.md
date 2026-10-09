@@ -51,6 +51,7 @@ _No tools yet._
 | [scripts/microsoft/dns/Test-KSK2024Readiness.ps1](scripts/microsoft/dns/Test-KSK2024Readiness.ps1) | Read-only readiness check for the DNSSEC Root KSK rollover to KSK-2024 (key tag 38696) | Read-only | not yet |
 | [scripts/microsoft/exchange/Clear-ExchangeLogFiles.ps1](scripts/microsoft/exchange/Clear-ExchangeLogFiles.ps1) | Reports Exchange and IIS log files older than a retention period, and deletes them with -Fix. | Read-only (changes with -Fix) | not yet |
 | [scripts/microsoft/exchange/Set-ExchangeVirtualDirectoryUrls.ps1](scripts/microsoft/exchange/Set-ExchangeVirtualDirectoryUrls.ps1) | Checks Exchange virtual directory, Autodiscover and Outlook Anywhere URLs for a namespace, sets them with -Fix. | Read-only (changes with -Fix) | not yet |
+| [scripts/misc/Export-RemoteTlsCertificate.ps1](scripts/misc/Export-RemoteTlsCertificate.ps1) | Connects to a TLS service (host and port) and exports the certificate it presents to a .cer file. | Read-only | not yet |
 | [scripts/virtualization/kvm/Install-VirtIOBootDriver.ps1](scripts/virtualization/kvm/Install-VirtIOBootDriver.ps1) | Checks and installs the VirtIO drivers a Windows VM needs before migration to KVM: vioscsi and viostor as boot drivers, NetKVM staged. | Read-only (changes with -Fix) | not yet |
 <!-- SCRIPTS:END -->
 
