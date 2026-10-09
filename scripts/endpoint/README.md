@@ -17,5 +17,6 @@ User workstations and client applications, regardless of vendor.
 <!-- SCRIPTS:START -->
 | Script | Description | Mode | Verified |
 |---|---|---|---|
+| [windows/Add-DnsServerToActiveAdapters.ps1](windows/Add-DnsServerToActiveAdapters.ps1) | Reports the DNS servers of every active network adapter and adds a DNS server where it is missing (-Fix). | Read-only (changes with -Fix) | not yet |
 | [windows/Repair-PhantomKeyboardLayout.ps1](windows/Repair-PhantomKeyboardLayout.ps1) | Finds keyboard layouts in the input switcher that are not in the user language list. Removes them with -Fix. | Read-only (changes with -Fix) | not yet |
 <!-- SCRIPTS:END -->
