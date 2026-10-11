@@ -48,7 +48,7 @@ BeforeAll {
         param(
             [string]$Name, [string]$Serial, [string]$Model = 'OptiPlex 7090', [string]$Manufacturer = 'Example Computers Inc.',
             [int64]$MemoryBytes = 17007497216, [object[]]$Adapters, [object[]]$Monitors, [switch]$NoMonitors,
-            [int]$Sockets = 1
+            [int]$Sockets = 1, [int64[]]$ModuleBytes = @(8589934592, 8589934592), [switch]$NoModules
         )
         if (-not $Adapters) { $Adapters = @(New-TestAdapter -IP '192.0.2.10', 'fe80::1' -Mac '00:00:5E:00:53:01') }
         $cpu = @(1..$Sockets | ForEach-Object { [pscustomobject]@{ Name = 'Intel(R) Core(TM) i7-11700  CPU @ 2.50GHz   ' } })
@@ -59,8 +59,10 @@ BeforeAll {
             Processor      = $cpu
             Adapters       = $Adapters
             Monitors       = $Monitors
+            Modules        = @($ModuleBytes | ForEach-Object { [pscustomobject]@{ Capacity = [uint64]$_ } })
         }
         if ($NoMonitors) { $pc.Monitors = $null }
+        if ($NoModules) { $pc.Modules = @() }
         return $pc
     }
 
@@ -78,6 +80,7 @@ BeforeAll {
             'Win32_BIOS'            { return $pc.Bios }
             'Win32_OperatingSystem' { return $pc.OS }
             'Win32_Processor'       { return $pc.Processor }
+            'Win32_PhysicalMemory'  { return $pc.Modules }
             'Win32_NetworkAdapterConfiguration' {
                 $a = @($pc.Adapters)
                 if ($Filter -match 'IPEnabled\s*=\s*True') { $a = @($a | Where-Object { $_.IPEnabled }) }
@@ -205,8 +208,23 @@ Describe 'Export-HardwareInventory' {
             $r = Invoke-Inventory -Csv (New-CsvPath) -Computers 'PC02', 'localhost'
             $r.ExitCode | Should -Be 0
             $r.Rows.ComputerName | Should -Be @('PC02', 'PC01')
-            @($r.Calls | Where-Object { $_.ComputerName -eq 'PC02' }).Count | Should -Be 6
-            @($r.Calls | Where-Object { -not $_.ComputerName }).Count | Should -Be 6
+            @($r.Calls | Where-Object { $_.ComputerName -eq 'PC02' }).Count | Should -Be 7
+            @($r.Calls | Where-Object { -not $_.ComputerName }).Count | Should -Be 7
+        }
+
+        It 'MemoryGB is the installed memory (sum of the modules), not the lower memory visible to Windows' {
+            # 32 GB installed, 31 GB visible to Windows (part is reserved for the GPU)
+            Set-Scenario @{ PC01 = (New-TestComputer -Name 'PC01' -Serial '5CD1234XYZ' -MemoryBytes 33300000000 -ModuleBytes 17179869184, 17179869184) }
+            $r = Invoke-Inventory -Csv (New-CsvPath)
+            $r.ExitCode | Should -Be 0
+            $r.Rows[0].MemoryGB | Should -Be '32'
+        }
+
+        It 'MemoryGB falls back to the memory visible to Windows when no module is reported' {
+            Set-Scenario @{ PC01 = (New-TestComputer -Name 'PC01' -Serial '5CD1234XYZ' -MemoryBytes 33300000000 -NoModules) }
+            $r = Invoke-Inventory -Csv (New-CsvPath)
+            $r.ExitCode | Should -Be 0
+            $r.Rows[0].MemoryGB | Should -Be '31'
         }
     }
 
@@ -216,7 +234,7 @@ Describe 'Export-HardwareInventory' {
             $csv = New-CsvPath
             Set-Scenario @{ PC01 = (New-TestComputer -Name 'PC01' -Serial '5CD1234XYZ') }
             (Invoke-Inventory -Csv $csv).ExitCode | Should -Be 0
-            Set-Scenario @{ PC01 = (New-TestComputer -Name 'PC01' -Serial '5CD1234XYZ' -Model 'OptiPlex 7010' -MemoryBytes 34200000000 -Monitors $script:Monitor1) }
+            Set-Scenario @{ PC01 = (New-TestComputer -Name 'PC01' -Serial '5CD1234XYZ' -Model 'OptiPlex 7010' -MemoryBytes 34200000000 -ModuleBytes 17179869184, 17179869184 -Monitors $script:Monitor1) }
             $r = Invoke-Inventory -Csv $csv
             $r.ExitCode | Should -Be 0
             $r.Rows.Count | Should -Be 1

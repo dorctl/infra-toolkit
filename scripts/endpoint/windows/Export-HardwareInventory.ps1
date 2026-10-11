@@ -20,7 +20,8 @@
         more than one IPv4 address lists them separated by ', ', an adapter without one shows '-'.
       - Monitors: "<manufacturer> <model> SN:<serial>" for each monitor, separated by '; '. Empty on
         servers and virtual machines that report no monitors (not an error).
-      - MemoryGB: the memory visible to Windows, rounded to whole GB.
+      - MemoryGB: the installed memory (the sum of the memory modules), rounded to whole GB. When the
+        modules cannot be read (some virtual machines), the memory visible to Windows.
       - CollectedAt: local time of the computer that ran the script, yyyy-MM-dd HH:mm.
 
     A computer's row is found by its BIOS serial number. When the serial is empty or a placeholder
@@ -45,7 +46,7 @@
     in Excel it cannot be replaced: the script exits 3 and the file is unchanged.
 
     Uses Get-CimInstance only (Win32_ComputerSystem, Win32_BIOS, Win32_OperatingSystem, Win32_Processor,
-    Win32_NetworkAdapterConfiguration, root\wmi WmiMonitorID), so it runs in Constrained Language Mode.
+    Win32_PhysicalMemory, Win32_NetworkAdapterConfiguration, root\wmi WmiMonitorID), so it runs in Constrained Language Mode.
     Remote computers are read over WinRM (Get-CimInstance -ComputerName) and need admin rights there.
 
 .PARAMETER ComputerName
@@ -72,8 +73,8 @@
 .NOTES
     Mode: Read-only
     Network: none (remote computers in -ComputerName are read over WinRM)
-    Tested on: mocked tests only, not yet run on a real system
-    Last verified: not yet
+    Tested on: Windows 11 Pro 25H2 (build 26200), Windows PowerShell 5.1, local computer
+    Last verified: 2026-10-11
     Exit codes: 0 = written, 1 = some computers could not be read (the others were written),
                 3 = the script could not run (the file could not be read, locked or written,
                 unexpected error). The CSV is the output of the script, like a report.
@@ -238,8 +239,22 @@ function Get-HardwareRow {
         if ($n.DHCPEnabled) { $dhcp += 'Yes' } else { $dhcp += 'No' }
     }
 
+    # Installed memory: the sum of the memory modules. TotalPhysicalMemory is lower (memory reserved for the
+    # GPU and the firmware), so a 32 GB computer would show 31. It is the fallback when no module is reported.
+    $installed = [double]0
+    try {
+        foreach ($m in @(Get-CimData -Computer $Computer -ClassName 'Win32_PhysicalMemory')) {
+            if ($m.Capacity) { $installed += [double]$m.Capacity }
+        }
+    } catch {
+        Write-Verbose ('{0}: no memory module information ({1})' -f $Computer, $_.Exception.Message)
+    }
     $memory = ''
-    if ($cs.TotalPhysicalMemory) { $memory = [string][int64][math]::Round([double]$cs.TotalPhysicalMemory / 1GB) }
+    if ($installed -gt 0) {
+        $memory = [string][int64][math]::Round($installed / 1GB)
+    } elseif ($cs.TotalPhysicalMemory) {
+        $memory = [string][int64][math]::Round([double]$cs.TotalPhysicalMemory / 1GB)
+    }
 
     $biosVersion = Get-CleanText $bios.SMBIOSBIOSVersion
     if (-not $biosVersion) { $biosVersion = Get-CleanText $bios.Version }
