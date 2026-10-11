@@ -21,11 +21,13 @@ Customer networks often have no access to GitHub and no git.
 - **A tool:** download the ZIP and its `.sha256` file from the [Releases](https://github.com/dorctl/infra-toolkit/releases)
   page, and move the ZIP through the customer's file transfer process.
 - **On the server:** a file that came from the internet is blocked by Mark of the Web. Run `Unblock-File` on it,
-  or `powershell.exe -ExecutionPolicy Bypass -File .\Script.ps1` where policy allows.
+  or `powershell.exe -ExecutionPolicy Bypass -File .\Script.ps1` for one run where policy allows, rather than
+  changing the machine policy with `Set-ExecutionPolicy`.
 - **Before running:** check the `Mode` and `Network` lines in the header. Read-only scripts make no changes;
   scripts that change something support `-WhatIf` and write a transcript.
-- **Outputs** go to `%USERPROFILE%\InfraToolkit-Output` or `%TEMP%` by default: never inside this repository
-  and never inside a synced folder.
+- **Outputs** go to `InfraToolkit-Output\<script name>` next to the script file by default, or to
+  `%TEMP%\InfraToolkit-Output\<script name>` when that folder cannot be written or is in OneDrive.
+  Every script has a parameter to choose another folder, and prints the folder at the end of the run.
 
 ## Security
 
@@ -50,7 +52,7 @@ _No tools yet._
 |---|---|---|---|
 | [scripts/backup/veeam/Invoke-VeeamRescan.ps1](scripts/backup/veeam/Invoke-VeeamRescan.ps1) | Rescans Veeam Backup & Replication managed servers and backup repositories, all of them or the ones named. | Changes: runs a rescan of managed servers and repositories | not yet |
 | [scripts/endpoint/windows/Add-DnsServerToActiveAdapters.ps1](scripts/endpoint/windows/Add-DnsServerToActiveAdapters.ps1) | Reports the DNS servers of every active network adapter and adds a DNS server where it is missing (-Fix). | Read-only (changes with -Fix) | not yet |
-| [scripts/endpoint/windows/Export-HardwareInventory.ps1](scripts/endpoint/windows/Export-HardwareInventory.ps1) | Adds or updates the hardware of Windows computers (model, serial, CPU, RAM, IP, monitors) in a CSV inventory. | Read-only | not yet |
+| [scripts/endpoint/windows/Export-HardwareInventory.ps1](scripts/endpoint/windows/Export-HardwareInventory.ps1) | Adds or updates the hardware of Windows computers (model, serial, CPU, RAM, IP, monitors) in a CSV inventory. | Read-only | 2026-10-11 |
 | [scripts/endpoint/windows/Repair-PhantomKeyboardLayout.ps1](scripts/endpoint/windows/Repair-PhantomKeyboardLayout.ps1) | Finds keyboard layouts in the input switcher that are not in the user language list. Removes them with -Fix. | Read-only (changes with -Fix) | not yet |
 | [scripts/microsoft/dns/Test-KSK2024Readiness.ps1](scripts/microsoft/dns/Test-KSK2024Readiness.ps1) | Read-only readiness check for the DNSSEC Root KSK rollover to KSK-2024 (key tag 38696) | Read-only | not yet |
 | [scripts/microsoft/exchange/Clear-ExchangeLogFiles.ps1](scripts/microsoft/exchange/Clear-ExchangeLogFiles.ps1) | Reports Exchange and IIS log files older than a retention period, and deletes them with -Fix. | Read-only (changes with -Fix) | not yet |
